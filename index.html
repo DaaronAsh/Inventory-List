@@ -405,11 +405,23 @@ sb.auth.onAuthStateChange(async (event, session) => {
     document.getElementById('app').style.display = 'block';
     await loadAll();
     subscribeRealtime();
-  } else {
+  } else if (event === 'SIGNED_OUT') {
     document.getElementById('auth-screen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
   }
 });
+
+// Also check session immediately on page load to handle refresh
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    await loadAll();
+    subscribeRealtime();
+  }
+})();
 
 // ── Data loading ──
 async function loadAll() {
