@@ -74,6 +74,9 @@
     .cat-del-btn { display: none; margin-left: 2px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 11px; padding: 1px 4px; border-radius: 3px; line-height: 1; flex-shrink: 0; }
     .cat-del-btn:hover { background: var(--bg3); color: var(--danger); }
     .cat-item:hover .cat-del-btn { display: block; }
+    .cat-del-btn { display: none; margin-left: 2px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 11px; padding: 1px 4px; border-radius: 3px; line-height: 1; flex-shrink: 0; }
+    .cat-del-btn:hover { color: var(--danger); }
+    .cat-item:hover .cat-del-btn { display: block; }
     .add-cat-btn { margin: 8px 12px; padding: 7px 12px; border-radius: var(--radius); border: 0.5px dashed var(--border2); background: transparent; color: var(--text3); font-size: 12px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 6px; }
     .add-cat-btn:hover { background: var(--bg2); color: var(--text2); }
     .member-row { display: flex; align-items: center; gap: 8px; padding: 5px 16px; }
@@ -401,29 +404,35 @@ function toggleAuthMode() {
 
 async function signOut() { await sb.auth.signOut(); location.reload(); }
 
-sb.auth.onAuthStateChange(async (event, session) => {
-  if (session) {
-    currentUser = session.user;
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    await loadAll();
-    subscribeRealtime();
-  } else if (event === 'SIGNED_OUT') {
-    document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
-  }
-});
+let appInitialised = false;
 
-// Also check session immediately on page load to handle refresh
+async function initApp(session) {
+  if (appInitialised) return;
+  appInitialised = true;
+  currentUser = session.user;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  await loadAll();
+  subscribeRealtime();
+}
+
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
-    currentUser = session.user;
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    await loadAll();
-    subscribeRealtime();
+    await initApp(session);
+  } else {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
   }
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session && !appInitialised) {
+      await initApp(session);
+    } else if (event === 'SIGNED_OUT') {
+      appInitialised = false;
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+  });
 })();
 
 // ── Data loading ──
@@ -485,7 +494,8 @@ function renderSidebar() {
     const col = CAT_COLORS[c.color_index % CAT_COLORS.length];
     html += `<div class="cat-item ${activeCat===c.id?'active':''}" onclick="setActiveCat('${c.id}')">
       <div class="cat-icon-wrap" style="background:${col.bg}">${c.icon}</div>${c.name}
-      <span class="cat-count">${count}</span></div>`;
+      <span class="cat-count">${count}</span>
+      <button class="cat-del-btn" onclick="event.stopPropagation();deleteCategory('${c.id}','${c.name}',${count})">✕</button></div>`;
   });
   document.getElementById('cat-list').innerHTML = html;
 }
@@ -687,6 +697,19 @@ function openCatModal() {
 async function deleteCategory(id, name, itemCount) {
   const msg = itemCount > 0
     ? `"${name}" has ${itemCount} item(s) in it. Deleting it will unassign those items from this category. Continue?`
+    : `Delete category "${name}"?`;
+  if (!confirm(msg)) return;
+  categories = categories.filter(c => c.id !== id);
+  if (activeCat === id) { activeCat = 'all'; document.getElementById('page-title').textContent = 'All items'; }
+  renderSidebar(); renderItems();
+  await sb.from('items').update({ category_id: null }).eq('category_id', id);
+  await sb.from('categories').delete().eq('id', id);
+  await writeLog(`Category "${name}" deleted.`, '#E24B4A');
+}
+
+async function deleteCategory(id, name, itemCount) {
+  const msg = itemCount > 0
+    ? `"${name}" has ${itemCount} item(s). Deleting it will unassign those items from this category. Continue?`
     : `Delete category "${name}"?`;
   if (!confirm(msg)) return;
   categories = categories.filter(c => c.id !== id);
