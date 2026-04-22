@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Malaysian Society — Inventory</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #ffffff;
+      --bg2: #f7f7f5;
+      --bg3: #f0efe9;
+      --text: #1a1a18;
+      --text2: #6b6b67;
+      --text3: #9e9e99;
+      --border: rgba(0,0,0,0.1);
+      --border2: rgba(0,0,0,0.18);
+      --radius: 8px;
+      --radius-lg: 12px;
+      --danger: #E24B4A;
+      --warn-bg: #FAECE7;
+      --warn-text: #993C1D;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a;
+        --bg2: #252523;
+        --bg3: #2e2e2b;
+        --text: #f0efe9;
+        --text2: #9e9e99;
+        --text3: #6b6b67;
+        --border: rgba(255,255,255,0.1);
+        --border2: rgba(255,255,255,0.18);
+        --warn-bg: #4a1b0c;
+        --warn-text: #F0997B;
+      }
+    }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); font-size: 14px; }
+
+    /* ── Auth Screen ── */
+    #auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .auth-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 36px 32px; width: 100%; max-width: 380px; }
+    .auth-logo { font-size: 28px; margin-bottom: 6px; }
+    .auth-title { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+    .auth-sub { font-size: 13px; color: var(--text2); margin-bottom: 28px; }
+    .form-label { font-size: 11px; color: var(--text2); display: block; margin-bottom: 5px; }
+    .form-input { width: 100%; padding: 9px 12px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 13px; margin-bottom: 14px; outline: none; }
+    .form-input:focus { border-color: var(--text3); }
+    .btn-primary { width: 100%; padding: 10px; border-radius: var(--radius); border: none; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .auth-toggle { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text2); }
+    .auth-toggle a { color: var(--text); cursor: pointer; text-decoration: underline; }
+    .auth-error { font-size: 12px; color: var(--danger); margin-bottom: 12px; display: none; }
+
+    /* ── Layout ── */
+    #app { display: none; height: 100vh; overflow: hidden; }
+    .layout { display: flex; height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar { width: 220px; background: var(--bg); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+    @media (max-width: 768px) { .sidebar { display: none; } .sidebar.open { display: flex; position: fixed; inset: 0; z-index: 50; width: 80%; max-width: 280px; } }
+    .sidebar-header { padding: 18px 16px 14px; border-bottom: 0.5px solid var(--border); }
+    .society-name { font-size: 13px; font-weight: 500; }
+    .society-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+    .sidebar-section { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 12px 16px 6px; }
+    .cat-item { display: flex; align-items: center; gap: 9px; padding: 7px 16px; cursor: pointer; font-size: 13px; color: var(--text2); transition: background 0.12s; user-select: none; }
+    .cat-item:hover { background: var(--bg2); color: var(--text); }
+    .cat-item.active { background: var(--bg2); color: var(--text); font-weight: 500; }
+    .cat-icon-wrap { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+    .cat-count { margin-left: auto; font-size: 11px; color: var(--text3); background: var(--bg2); border-radius: 10px; padding: 1px 6px; }
+    .add-cat-btn { margin: 8px 12px; padding: 7px 12px; border-radius: var(--radius); border: 0.5px dashed var(--border2); background: transparent; color: var(--text3); font-size: 12px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 6px; }
+    .add-cat-btn:hover { background: var(--bg2); color: var(--text2); }
+    .member-row { display: flex; align-items: center; gap: 8px; padding: 5px 16px; }
+    .avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; flex-shrink: 0; }
+    .member-name-text { font-size: 12px; color: var(--text2); }
+    .sidebar-footer { margin-top: auto; padding: 10px 16px; border-top: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .sign-out-btn { font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; }
+    .sign-out-btn:hover { color: var(--text2); }
+
+    /* ── Main ── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 0.5px solid var(--border); background: var(--bg); flex-shrink: 0; }
+    .hamburger { display: none; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text); }
+    @media (max-width: 768px) { .hamburger { display: block; } }
+    .page-title { font-size: 15px; font-weight: 500; white-space: nowrap; }
+    .search-wrap { flex: 1; max-width: 260px; position: relative; }
+    .search-wrap input { width: 100%; padding: 7px 10px 7px 30px; border-radius: var(--radius); border: 0.5px solid var(--border); background: var(--bg2); font-size: 13px; color: var(--text); outline: none; }
+    .search-wrap input:focus { border-color: var(--border2); }
+    .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; font-size: 13px; }
+    .topbar-right { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+    .notif-btn { position: relative; background: none; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 6px 10px; cursor: pointer; color: var(--text2); font-size: 14px; }
+    .notif-btn:hover { background: var(--bg2); }
+    .notif-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 1.5px solid var(--bg); display: none; }
+    .add-item-btn { background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); padding: 7px 13px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+    .add-item-btn:hover { opacity: 0.85; }
+    .nav-tabs { display: flex; gap: 2px; padding: 0 18px; background: var(--bg); border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+    .nav-tab { padding: 9px 14px; font-size: 12px; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; transition: all 0.12s; }
+    .nav-tab:hover { color: var(--text2); }
+    .nav-tab.active { color: var(--text); font-weight: 500; border-bottom-color: var(--text); }
+
+    /* ── Stats ── */
+    .stats-row { display: flex; gap: 10px; padding: 14px 18px 0; flex-shrink: 0; }
+    .stat-card { flex: 1; background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+    .stat-label { font-size: 11px; color: var(--text3); margin-bottom: 3px; }
+    .stat-val { font-size: 20px; font-weight: 500; }
+    .stat-val.warn { color: var(--danger); }
+    .stat-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+    /* ── Inventory ── */
+    .inventory-area { flex: 1; overflow-y: auto; padding: 14px 18px; }
+    .section-label { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 9px; margin-top: 4px; }
+    .item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    @media (max-width: 500px) { .item-grid { grid-template-columns: 1fr 1fr; } }
+    .item-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 13px; transition: border-color 0.15s; }
+    .item-card:hover { border-color: var(--border2); }
+    .item-card.low { border-color: #F0997B; }
+    .item-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 9px; }
+    .item-icon-bg { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 19px; }
+    .item-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; line-height: 1; }
+    .item-del:hover { background: var(--bg2); }
+    .item-name { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+    .cat-tag { display: inline-flex; align-items: center; font-size: 10px; padding: 2px 7px; border-radius: 10px; margin-bottom: 9px; }
+    .qty-row { display: flex; align-items: center; gap: 7px; }
+    .qty-btn { width: 25px; height: 25px; border-radius: 6px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.12s; }
+    .qty-btn:hover { background: var(--bg3); }
+    .qty-val { font-size: 15px; font-weight: 500; min-width: 24px; text-align: center; }
+    .qty-unit { font-size: 11px; color: var(--text3); }
+    .low-badge { display: inline-flex; font-size: 10px; padding: 2px 6px; border-radius: 10px; background: var(--warn-bg); color: var(--warn-text); margin-left: auto; }
+    .with-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--border); }
+    .with-avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; flex-shrink: 0; }
+    .with-name { font-size: 11px; color: var(--text2); }
+    .with-edit { margin-left: auto; background: none; border: 0.5px solid var(--border); border-radius: 5px; padding: 2px 7px; font-size: 10px; color: var(--text3); cursor: pointer; }
+    .with-edit:hover { background: var(--bg2); color: var(--text2); }
+    .note-row { display: flex; align-items: flex-start; gap: 5px; margin-top: 6px; }
+    .note-text { font-size: 11px; color: var(--text3); font-style: italic; line-height: 1.4; }
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 13px; }
+
+    /* ── Activity Log ── */
+    .log-panel { flex: 1; overflow-y: auto; padding: 14px 18px; }
+    .log-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+    .log-item:last-child { border-bottom: none; }
+    .log-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .log-msg { font-size: 12px; line-height: 1.5; }
+    .log-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    /* ── Notification Panel ── */
+    .notif-panel { width: 270px; background: var(--bg); border-left: 0.5px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    .notif-panel.hidden { display: none; }
+    @media (max-width: 900px) { .notif-panel { position: fixed; right: 0; top: 0; bottom: 0; z-index: 40; box-shadow: -4px 0 20px rgba(0,0,0,0.12); } }
+    .notif-header { padding: 13px 15px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .notif-title { font-size: 13px; font-weight: 500; }
+    .notif-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 15px; }
+    .notif-list { flex: 1; overflow-y: auto; }
+    .notif-item { padding: 11px 15px; border-bottom: 0.5px solid var(--border); cursor: pointer; transition: background 0.12s; }
+    .notif-item:hover { background: var(--bg2); }
+    .notif-item.unread { background: rgba(55,138,221,0.06); }
+    .notif-msg { font-size: 12px; line-height: 1.5; }
+    .notif-time { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .notify-all-btn { margin: 10px; padding: 8px 12px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: 12px; cursor: pointer; text-align: center; }
+    .notify-all-btn:hover { background: var(--bg2); }
+
+    /* ── Modals ── */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+    .overlay.hidden { display: none; }
+    .modal { background: var(--bg); border-radius: var(--radius-lg); border: 0.5px solid var(--border); padding: 20px; width: 100%; max-width: 340px; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 14px; font-weight: 500; margin-bottom: 15px; }
+    .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 11px; }
+    .form-row-2 .form-input { margin-bottom: 0; }
+    textarea.form-input { resize: none; line-height: 1.5; }
+    select.form-input { cursor: pointer; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    .btn-cancel { padding: 7px 13px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: 13px; cursor: pointer; }
+    .icon-picker { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+    .icon-opt { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 17px; cursor: pointer; border: 1.5px solid transparent; background: var(--bg2); transition: all 0.12s; }
+    .icon-opt:hover { border-color: var(--border2); }
+    .icon-opt.sel { border-color: var(--text); }
+    .member-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--border2); cursor: pointer; font-size: 12px; color: var(--text2); background: var(--bg2); transition: all 0.12s; }
+    .chip.sel { border-color: var(--text); color: var(--text); font-weight: 500; background: var(--bg); }
+    .chip-avatar { width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; }
+    .color-dots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .color-dot { width: 22px; height: 22px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: border 0.12s; }
+    .setup-note { font-size: 12px; color: var(--text2); background: var(--bg2); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 16px; line-height: 1.6; }
+    .setup-note code { font-family: monospace; background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+    .loading-screen { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text3); font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<!-- Auth -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">🇲🇾</div>
+    <div class="auth-title">Malaysian Society</div>
+    <div class="auth-sub">Committee inventory portal</div>
+    <div class="auth-error" id="auth-error"></div>
+    <label class="form-label">Email</label>
+    <input class="form-input" type="email" id="auth-email" placeholder="your@email.com">
+    <label class="form-label">Password</label>
+    <input class="form-input" type="password" id="auth-password" placeholder="••••••••">
+    <button class="btn-primary" id="auth-btn" onclick="handleAuth()">Sign in</button>
+    <div class="auth-toggle">
+      <span id="auth-toggle-text">Don't have an account?</span>
+      <a onclick="toggleAuthMode()">Sign up</a>
+    </div>
+    <div style="margin-top:20px;font-size:11px;color:var(--text3);text-align:center;">
+      ⚙️ First time? Add your Supabase keys in <code style="font-family:monospace;background:var(--bg2);padding:1px 4px;border-radius:3px;">config.js</code>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="society-name">Malaysian Society</div>
+        <div class="society-sub">Committee Portal</div>
+      </div>
+      <div class="sidebar-section">Categories</div>
+      <div id="cat-list"></div>
+      <button class="add-cat-btn" onclick="openCatModal()">+ add category</button>
+      <div class="sidebar-section" style="margin-top:6px;">Committee</div>
+      <div id="member-list"></div>
+      <div class="sidebar-footer">
+        <div style="font-size:11px;color:var(--text3);" id="sync-status">Synced</div>
+        <button class="sign-out-btn" onclick="signOut()">Sign out</button>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <div class="page-title" id="page-title">All items</div>
+        <div class="search-wrap" id="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input type="text" placeholder="Search items..." id="search-input" oninput="renderItems()">
+        </div>
+        <div class="topbar-right">
+          <button class="notif-btn" onclick="toggleNotifs()">🔔<div class="notif-dot" id="notif-dot"></div></button>
+          <button class="add-item-btn" id="add-item-btn" onclick="openItemModal()">+ add item</button>
+        </div>
+      </div>
+      <div class="nav-tabs">
+        <div class="nav-tab active" id="tab-inv" onclick="switchTab('inventory')">Inventory</div>
+        <div class="nav-tab" id="tab-log" onclick="switchTab('log')">Activity log</div>
+      </div>
+      <div id="view-inventory" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="stats-row" id="stats-row"></div>
+        <div class="inventory-area" id="inventory-area"></div>
+      </div>
+      <div id="view-log" style="display:none;flex:1;overflow:hidden;flex-direction:column;">
+        <div class="log-panel" id="log-panel"></div>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="notif-panel hidden" id="notif-panel">
+      <div class="notif-header">
+        <div class="notif-title">Notifications</div>
+        <button class="notif-close" onclick="toggleNotifs()">✕</button>
+      </div>
+      <div class="notif-list" id="notif-list"></div>
+      <button class="notify-all-btn" onclick="broadcastAlert()">Notify all committee →</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="overlay hidden" id="modal-item">
+  <div class="modal">
+    <div class="modal-title" id="modal-item-title">Add new item</div>
+    <label class="form-label">Item name</label>
+    <input class="form-input" type="text" id="inp-name" placeholder="e.g. Folding table">
+    <div class="form-row-2">
+      <div><label class="form-label">Category</label><select class="form-input" id="inp-cat"></select></div>
+      <div><label class="form-label">Quantity</label><input class="form-input" type="number" id="inp-qty" placeholder="0" min="0"></div>
+    </div>
+    <div class="form-row-2">
+      <div><label class="form-label">Unit (optional)</label><input class="form-input" type="text" id="inp-unit" placeholder="pcs, sets…"></div>
+      <div><label class="form-label">Low stock alert</label><input class="form-input" type="number" id="inp-threshold" placeholder="3" min="0"></div>
+    </div>
+    <label class="form-label">Currently with</label>
+    <div class="member-chips" id="item-member-chips"></div>
+    <label class="form-label" style="margin-top:11px;">Notes (optional)</label>
+    <textarea class="form-input" id="inp-note" rows="2" placeholder="e.g. Borrowed from SU, return by May"></textarea>
+    <label class="form-label" style="margin-top:11px;">Choose icon</label>
+    <div class="icon-picker" id="item-icon-picker"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-item')">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:7px 16px;" onclick="saveItem()">Save item</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modal-with">
+  <div class="modal">
+    <div class="modal-title" id="modal-with-title">Who has this?</div>
+    <label class="form-label">Select committee member</label>
+    <div class="member-chips" id="with-chips"></div>
+    <label class="form-label" style="margin-top:11px;">Notes</label>
+    <textarea class="form-input" id="with-note" rows="2" placeholder="Any relevant notes…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-with')">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:7px 16px;" onclick="saveWith()">Update</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modal-cat">
+  <div class="modal">
+    <div class="modal-title">New category</div>
+    <label class="form-label">Category name</label>
+    <input class="form-input" type="text" id="inp-cat-name" placeholder="e.g. Event Props">
+    <label class="form-label" style="margin-top:2px;">Choose icon</label>
+    <div class="icon-picker" id="cat-icon-picker"></div>
+    <label class="form-label" style="margin-top:11px;">Colour</label>
+    <div class="color-dots" id="color-dots"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-cat')">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:7px 16px;" onclick="saveCat()">Add category</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config — replace with your Supabase project values ──
+const SUPABASE_URL = 'https://gqjjrqqzdkookqpfmfbh.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxampycXF6ZGtvb3hxcGZtZmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTIyNjYsImV4cCI6MjA5MjM2ODI2Nn0.KWxyxMdSJuLDu5jqJvvzr1EgMmwcJFcCGcb8YjVkul4';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── Colour palettes ──
+const CAT_COLORS = [
+  {bg:'#EEEDFE',text:'#534AB7',border:'#AFA9EC'},
+  {bg:'#E1F5EE',text:'#0F6E56',border:'#5DCAA5'},
+  {bg:'#FAECE7',text:'#993C1D',border:'#F0997B'},
+  {bg:'#FBEAF0',text:'#993556',border:'#ED93B1'},
+  {bg:'#FAEEDA',text:'#854F0B',border:'#EF9F27'},
+  {bg:'#EAF3DE',text:'#3B6D11',border:'#97C459'},
+  {bg:'#E6F1FB',text:'#185FA5',border:'#85B7EB'},
+];
+const MEMBER_COLORS = [
+  {bg:'#EEEDFE',text:'#534AB7'},{bg:'#E1F5EE',text:'#0F6E56'},
+  {bg:'#FAEEDA',text:'#854F0B'},{bg:'#FBEAF0',text:'#993556'},
+  {bg:'#E6F1FB',text:'#185FA5'},{bg:'#EAF3DE',text:'#3B6D11'},
+];
+const ALL_ICONS = ['📦','🎒','🧺','🗂️','📋','🖊️','✂️','📌','🔧','🔑','🎤','📷','🎬','🖥️','📡','🎨','🧵','👕','🧢','👜','🛍️','🪑','🛋️','🪞','🖼️','🏮','🕯️','🎁','🏆','🥇','🎉','🎊','🪅','🎈','🎵','🎶','🎸','🥁','📻','📢','🍱','🍜','🍰','🥤','🧃','🍽️','🫙','🧹','🧻','🗃️','📁','💼','🗺️','📍'];
+
+// ── State ──
+let currentUser = null;
+let categories = [];
+let items = [];
+let members = [];
+let notifications = [];
+let activityLog = [];
+let activeCat = 'all';
+let activeTab = 'inventory';
+let selectedIcon = ALL_ICONS[0];
+let selectedCatIcon = ALL_ICONS[0];
+let selectedColorIdx = 0;
+let selectedMember = null;
+let withItemId = null;
+let authMode = 'signin';
+let notifsOpen = false;
+
+// ── Auth ──
+async function handleAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-btn');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = authMode === 'signin' ? 'Signing in…' : 'Creating account…';
+  const { error } = authMode === 'signin'
+    ? await sb.auth.signInWithPassword({ email, password })
+    : await sb.auth.signUp({ email, password });
+  btn.disabled = false;
+  btn.textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+  if (authMode === 'signup') { errEl.style.color = '#1D9E75'; errEl.textContent = 'Check your email to confirm your account.'; errEl.style.display = 'block'; }
+}
+
+function toggleAuthMode() {
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  document.getElementById('auth-btn').textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
+  document.getElementById('auth-toggle-text').textContent = authMode === 'signin' ? "Don't have an account?" : 'Already have an account?';
+}
+
+async function signOut() { await sb.auth.signOut(); location.reload(); }
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session) {
+    currentUser = session.user;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    await loadAll();
+    subscribeRealtime();
+  } else {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
+
+// ── Data loading ──
+async function loadAll() {
+  setSyncStatus('Syncing…');
+  await Promise.all([loadCategories(), loadItems(), loadMembers(), loadLog()]);
+  renderSidebar(); renderItems(); renderMemberList();
+  setSyncStatus('Synced');
+}
+
+async function loadCategories() {
+  const { data } = await sb.from('categories').select('*').order('created_at');
+  categories = data || [];
+}
+
+async function loadItems() {
+  const { data } = await sb.from('items').select('*').order('created_at');
+  items = data || [];
+}
+
+async function loadMembers() {
+  const { data } = await sb.from('members').select('*').order('name');
+  members = data || [];
+}
+
+async function loadLog() {
+  const { data } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100);
+  activityLog = data || [];
+}
+
+// ── Realtime subscriptions ──
+function subscribeRealtime() {
+  sb.channel('inventory-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, () => { loadItems().then(renderItems); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => { loadCategories().then(() => { renderSidebar(); renderItems(); }); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => { loadLog().then(() => { if (activeTab === 'log') renderLog(); }); })
+    .subscribe();
+}
+
+// ── Log helpers ──
+async function writeLog(msg, color) {
+  await sb.from('activity_log').insert({ message: msg, color, user_email: currentUser?.email });
+  await loadLog();
+  if (activeTab === 'log') renderLog();
+}
+
+function addLocalNotif(icon, msg) {
+  notifications.unshift({ id: Date.now(), icon, msg, time: 'just now', read: false });
+  renderNotifs(); updateNotifDot();
+}
+
+// ── Sidebar & member list ──
+function renderSidebar() {
+  let html = `<div class="cat-item ${activeCat==='all'?'active':''}" onclick="setActiveCat('all')">
+    <div class="cat-icon-wrap" style="background:var(--bg2)">📦</div>All items
+    <span class="cat-count">${items.length}</span></div>`;
+  categories.forEach(c => {
+    const count = items.filter(i => i.category_id === c.id).length;
+    const col = CAT_COLORS[c.color_index % CAT_COLORS.length];
+    html += `<div class="cat-item ${activeCat===c.id?'active':''}" onclick="setActiveCat('${c.id}')">
+      <div class="cat-icon-wrap" style="background:${col.bg}">${c.icon}</div>${c.name}
+      <span class="cat-count">${count}</span></div>`;
+  });
+  document.getElementById('cat-list').innerHTML = html;
+}
+
+function renderMemberList() {
+  document.getElementById('member-list').innerHTML = members.map((m, i) => {
+    const col = MEMBER_COLORS[i % MEMBER_COLORS.length];
+    const initials = m.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    return `<div class="member-row"><div class="avatar" style="background:${col.bg};color:${col.text};">${initials}</div><span class="member-name-text">${m.name}</span></div>`;
+  }).join('');
+}
+
+// ── Stats & inventory ──
+function renderStats() {
+  const vis = getVisible();
+  const low = vis.filter(i => i.qty <= i.low_threshold).length;
+  const withSomeone = vis.filter(i => i.assigned_member_id).length;
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total items</div><div class="stat-val">${vis.length}</div><div class="stat-sub">in this view</div></div>
+    <div class="stat-card"><div class="stat-label">With someone</div><div class="stat-val">${withSomeone}</div><div class="stat-sub">assigned</div></div>
+    <div class="stat-card"><div class="stat-label">Low stock</div><div class="stat-val ${low>0?'warn':''}">${low}</div><div class="stat-sub">${low>0?'needs attention':'all good'}</div></div>`;
+}
+
+function getVisible() {
+  const q = document.getElementById('search-input')?.value.toLowerCase() || '';
+  return items.filter(i =>
+    (activeCat === 'all' || i.category_id === activeCat) &&
+    (!q || i.name.toLowerCase().includes(q))
+  );
+}
+
+function renderItems() {
+  const vis = getVisible();
+  const low = vis.filter(i => i.qty <= i.low_threshold);
+  const ok = vis.filter(i => i.qty > i.low_threshold);
+  let html = '';
+  if (low.length) { html += `<div class="section-label">Low stock (${low.length})</div><div class="item-grid">`; low.forEach(i => html += itemCard(i)); html += '</div>'; }
+  if (ok.length) { html += `<div class="section-label">${low.length ? 'In stock' : 'Items'} (${ok.length})</div><div class="item-grid">`; ok.forEach(i => html += itemCard(i)); html += '</div>'; }
+  if (!vis.length) html = '<div class="empty-state">No items found</div>';
+  document.getElementById('inventory-area').innerHTML = html;
+  renderStats(); renderSidebar();
+}
+
+function itemCard(item) {
+  const cat = categories.find(c => c.id === item.category_id);
+  const col = cat ? CAT_COLORS[cat.color_index % CAT_COLORS.length] : CAT_COLORS[0];
+  const assignedMember = item.assigned_member_id ? members.find(m => m.id === item.assigned_member_id) : null;
+  const mIdx = assignedMember ? members.indexOf(assignedMember) : 0;
+  const mCol = MEMBER_COLORS[mIdx % MEMBER_COLORS.length];
+  const initials = assignedMember ? assignedMember.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '';
+  const low = item.qty <= item.low_threshold;
+
+  const withRow = assignedMember
+    ? `<div class="with-row"><div class="with-avatar" style="background:${mCol.bg};color:${mCol.text};">${initials}</div><div class="with-name">${assignedMember.name}</div><button class="with-edit" onclick="openWithModal('${item.id}')">edit</button></div>`
+    : `<div class="with-row"><div style="font-size:11px;color:var(--text3)">With society</div><button class="with-edit" onclick="openWithModal('${item.id}')">assign</button></div>`;
+
+  const noteRow = item.note ? `<div class="note-row"><span style="font-size:10px;color:var(--text3)">📝</span><div class="note-text">${item.note}</div></div>` : '';
+
+  return `<div class="item-card${low?' low':''}">
+    <div class="item-top"><div class="item-icon-bg" style="background:${col.bg}">${item.icon}</div><button class="item-del" onclick="deleteItem('${item.id}')">✕</button></div>
+    <div class="item-name">${item.name}</div>
+    <div style="margin-bottom:8px;"><span class="cat-tag" style="background:${col.bg};color:${col.text};border:0.5px solid ${col.border}">${cat?cat.icon+' '+cat.name:'—'}</span></div>
+    <div class="qty-row">
+      <button class="qty-btn" onclick="changeQty('${item.id}',-1)">−</button>
+      <span class="qty-val">${item.qty}</span>
+      <span class="qty-unit">${item.unit||''}</span>
+      <button class="qty-btn" onclick="changeQty('${item.id}',1)">+</button>
+      ${low?'<span class="low-badge">⚠ low</span>':''}
+    </div>
+    ${withRow}${noteRow}
+  </div>`;
+}
+
+// ── Actions ──
+async function changeQty(id, delta) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  const wasLow = item.qty <= item.low_threshold;
+  const newQty = Math.max(0, item.qty + delta);
+  item.qty = newQty; renderItems();
+  await sb.from('items').update({ qty: newQty }).eq('id', id);
+  await writeLog(`${item.name} quantity updated to ${newQty}.`, '#BA7517');
+  if (newQty <= item.low_threshold && !wasLow) {
+    addLocalNotif('⚠️', `${item.name} is now low — ${newQty} ${item.unit||'units'} remaining.`);
+    await writeLog(`${item.name} dropped below threshold.`, '#E24B4A');
+  }
+  setSyncStatus('Synced');
+}
+
+async function deleteItem(id) {
+  const item = items.find(i => i.id === id);
+  if (!item || !confirm(`Remove "${item.name}"?`)) return;
+  items = items.filter(i => i.id !== id); renderItems();
+  await sb.from('items').delete().eq('id', id);
+  await writeLog(`${item.name} removed from inventory.`, '#E24B4A');
+  addLocalNotif('🗑️', `"${item.name}" removed.`);
+}
+
+// ── Assign who has item ──
+function openWithModal(id) {
+  withItemId = id;
+  const item = items.find(i => i.id === id);
+  document.getElementById('modal-with-title').textContent = `Who has "${item.name}"?`;
+  selectedMember = item.assigned_member_id || null;
+  document.getElementById('with-note').value = item.note || '';
+  renderWithChips('with-chips');
+  document.getElementById('modal-with').classList.remove('hidden');
+}
+
+function renderWithChips(containerId) {
+  document.getElementById(containerId).innerHTML =
+    `<div class="chip ${!selectedMember?'sel':''}" onclick="selectMember(null,'${containerId}')">Society</div>` +
+    members.map((m, i) => {
+      const col = MEMBER_COLORS[i % MEMBER_COLORS.length];
+      const init = m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      return `<div class="chip ${selectedMember===m.id?'sel':''}" onclick="selectMember('${m.id}','${containerId}')">
+        <div class="chip-avatar" style="background:${col.bg};color:${col.text}">${init}</div>${m.name}</div>`;
+    }).join('');
+}
+
+function selectMember(id, containerId) {
+  selectedMember = id;
+  renderWithChips(containerId);
+}
+
+async function saveWith() {
+  const item = items.find(i => i.id === withItemId);
+  if (!item) return;
+  const prevId = item.assigned_member_id;
+  const note = document.getElementById('with-note').value.trim();
+  item.assigned_member_id = selectedMember;
+  item.note = note;
+  renderItems();
+  await sb.from('items').update({ assigned_member_id: selectedMember, note }).eq('id', withItemId);
+  if (selectedMember && selectedMember !== prevId) {
+    const m = members.find(x => x.id === selectedMember);
+    await writeLog(`${item.name} assigned to ${m?.name}.`, '#378ADD');
+    addLocalNotif('📤', `${item.name} assigned to ${m?.name}.`);
+  } else if (!selectedMember && prevId) {
+    await writeLog(`${item.name} unassigned — back with society.`, '#B4B2A9');
+  }
+  if (note) await writeLog(`Note updated on ${item.name}.`, '#B4B2A9');
+  closeModal('modal-with');
+}
+
+// ── Add item modal ──
+function openItemModal() {
+  document.getElementById('modal-item-title').textContent = 'Add new item';
+  document.getElementById('inp-name').value = '';
+  document.getElementById('inp-qty').value = '';
+  document.getElementById('inp-unit').value = '';
+  document.getElementById('inp-threshold').value = '3';
+  document.getElementById('inp-note').value = '';
+  const catSel = document.getElementById('inp-cat');
+  catSel.innerHTML = categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  if (activeCat !== 'all') catSel.value = activeCat;
+  selectedIcon = ALL_ICONS[0]; selectedMember = null;
+  buildIconPicker('item-icon-picker', 'item');
+  renderWithChips('item-member-chips');
+  document.getElementById('modal-item').classList.remove('hidden');
+}
+
+async function saveItem() {
+  const name = document.getElementById('inp-name').value.trim();
+  const catId = document.getElementById('inp-cat').value;
+  const qty = parseInt(document.getElementById('inp-qty').value) || 0;
+  const unit = document.getElementById('inp-unit').value.trim();
+  const threshold = parseInt(document.getElementById('inp-threshold').value) || 3;
+  const note = document.getElementById('inp-note').value.trim();
+  if (!name) { document.getElementById('inp-name').focus(); return; }
+  const { data, error } = await sb.from('items').insert({
+    name, category_id: catId || null, qty, unit, low_threshold: threshold,
+    note, icon: selectedIcon, assigned_member_id: selectedMember || null
+  }).select().single();
+  if (!error && data) {
+    items.push(data);
+    await writeLog(`${name} added to inventory.`, '#1D9E75');
+    if (selectedMember) {
+      const m = members.find(x => x.id === selectedMember);
+      await writeLog(`${name} assigned to ${m?.name}.`, '#378ADD');
+    }
+    addLocalNotif('➕', `"${name}" added to inventory.`);
+    renderItems();
+  }
+  closeModal('modal-item');
+}
+
+// ── Add category ──
+function openCatModal() {
+  selectedCatIcon = ALL_ICONS[0]; selectedColorIdx = 0;
+  document.getElementById('inp-cat-name').value = '';
+  buildIconPicker('cat-icon-picker', 'cat');
+  document.getElementById('color-dots').innerHTML = CAT_COLORS.map((c, i) =>
+    `<div class="color-dot" id="cdot-${i}" onclick="selectColor(${i})" style="background:${c.bg};border-color:${i===0?c.border:'transparent'}"></div>`
+  ).join('');
+  document.getElementById('modal-cat').classList.remove('hidden');
+}
+
+async function saveCat() {
+  const name = document.getElementById('inp-cat-name').value.trim();
+  if (!name) { document.getElementById('inp-cat-name').focus(); return; }
+  const { data, error } = await sb.from('categories').insert({ name, icon: selectedCatIcon, color_index: selectedColorIdx }).select().single();
+  if (!error && data) { categories.push(data); renderSidebar(); }
+  closeModal('modal-cat');
+}
+
+function selectColor(i) {
+  selectedColorIdx = i;
+  CAT_COLORS.forEach((c, j) => {
+    const el = document.getElementById('cdot-' + j);
+    if (el) el.style.borderColor = j === i ? c.border : 'transparent';
+  });
+}
+
+// ── Icon picker ──
+function buildIconPicker(containerId, scope) {
+  document.getElementById(containerId).innerHTML = ALL_ICONS.map((ic, i) =>
+    `<div class="icon-opt ${i===0?'sel':''}" onclick="selectIcon('${containerId}','${ic}','${scope}')">${ic}</div>`
+  ).join('');
+  if (scope === 'item') selectedIcon = ALL_ICONS[0];
+  else selectedCatIcon = ALL_ICONS[0];
+}
+
+function selectIcon(containerId, icon, scope) {
+  if (scope === 'item') selectedIcon = icon;
+  else selectedCatIcon = icon;
+  document.querySelectorAll(`#${containerId} .icon-opt`).forEach(el => el.classList.toggle('sel', el.textContent === icon));
+}
+
+// ── Log tab ──
+function renderLog() {
+  document.getElementById('log-panel').innerHTML = activityLog.length
+    ? activityLog.map(e => `<div class="log-item">
+        <div class="log-dot" style="background:${e.color}"></div>
+        <div><div class="log-msg">${e.message}</div><div class="log-meta">${e.user_email ? e.user_email.split('@')[0] + ' · ' : ''}${formatTime(e.created_at)}</div></div>
+      </div>`).join('')
+    : '<div class="empty-state">No activity yet</div>';
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts), now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+}
+
+// ── Notifications ──
+function renderNotifs() {
+  document.getElementById('notif-list').innerHTML = notifications.length
+    ? notifications.map(n => `<div class="notif-item ${n.read?'':'unread'}" onclick="markRead(${n.id})">
+        <div style="font-size:16px;margin-bottom:3px">${n.icon}</div>
+        <div class="notif-msg">${n.msg}</div>
+        <div class="notif-time">${n.time}</div>
+      </div>`).join('')
+    : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--text3)">No notifications</div>';
+}
+
+function markRead(id) { const n = notifications.find(x => x.id === id); if (n) n.read = true; renderNotifs(); updateNotifDot(); }
+function updateNotifDot() { document.getElementById('notif-dot').style.display = notifications.some(n => !n.read) ? 'block' : 'none'; }
+function toggleNotifs() { notifsOpen = !notifsOpen; document.getElementById('notif-panel').classList.toggle('hidden', !notifsOpen); if (notifsOpen) renderNotifs(); }
+function broadcastAlert() { addLocalNotif('📣', 'All committee members notified about current stock alerts.'); alert('All committee members notified.'); }
+
+// ── Navigation ──
+function setActiveCat(id) {
+  activeCat = id;
+  document.getElementById('page-title').textContent = id === 'all' ? 'All items' : (categories.find(c => c.id === id)?.name || 'Items');
+  renderItems(); renderSidebar();
+  if (window.innerWidth <= 768) toggleSidebar();
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-inv').classList.toggle('active', tab === 'inventory');
+  document.getElementById('tab-log').classList.toggle('active', tab === 'log');
+  document.getElementById('view-inventory').style.display = tab === 'inventory' ? 'flex' : 'none';
+  document.getElementById('view-log').style.display = tab === 'log' ? 'flex' : 'none';
+  document.getElementById('search-wrap').style.display = tab === 'inventory' ? 'block' : 'none';
+  document.getElementById('add-item-btn').style.display = tab === 'inventory' ? 'block' : 'none';
+  if (tab === 'log') renderLog();
+}
+
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function setSyncStatus(s) { document.getElementById('sync-status').textContent = s; }
+</script>
+</body>
+</html>
