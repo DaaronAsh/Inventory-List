@@ -398,29 +398,37 @@ function toggleAuthMode() {
 
 async function signOut() { await sb.auth.signOut(); location.reload(); }
 
-sb.auth.onAuthStateChange(async (event, session) => {
-  if (session) {
-    currentUser = session.user;
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    await loadAll();
-    subscribeRealtime();
-  } else if (event === 'SIGNED_OUT') {
-    document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
-  }
-});
+let appInitialised = false;
 
-// Also check session immediately on page load to handle refresh
+async function initApp(session) {
+  if (appInitialised) return;
+  appInitialised = true;
+  currentUser = session.user;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  await loadAll();
+  subscribeRealtime();
+}
+
+// Single entry point — check session first, then listen for changes
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
-    currentUser = session.user;
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    await loadAll();
-    subscribeRealtime();
+    await initApp(session);
+  } else {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
   }
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session && !appInitialised) {
+      await initApp(session);
+    } else if (event === 'SIGNED_OUT') {
+      appInitialised = false;
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+  });
 })();
 
 // ── Data loading ──
